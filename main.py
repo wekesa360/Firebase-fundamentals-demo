@@ -39,5 +39,21 @@ def login():
     except Exception as e:
         return jsonify({'message': f'Invalid credentials {e}'}), 401
     
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    session.pop('user', None)
+    return jsonify({'message': 'Logout successful.'}), 200
+
+
+@app.route('api/profile', methods=['GET'])
+def profile():
+    if 'user' in session:
+        user = auth.get_user(session['user'])
+        user_data = db.reference(f'users/{user.uid}').get()
+        return jsonify({'email': user.email, 'name': user_data['name']}), 200
+    else:
+        return jsonify({'message': 'You are not logged in'}), 401
+    
     
         
