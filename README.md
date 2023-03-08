@@ -1,4 +1,4 @@
-# Flask-Firebase CRUD API
+# Flask-Firebase(Firestore) CRUD API
 This is a simple Flask API that uses Firebase Firestore as a data store to perform CRUD (Create, Read, Update, Delete) operations on a collection of users.
 
 ## **Requirements**
