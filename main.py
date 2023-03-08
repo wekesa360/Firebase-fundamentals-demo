@@ -1,83 +1,49 @@
 import firebase_admin
-from firebase_admin import credentials, auth, db
-from flask import Flask, jsonify, request, session
-import os
+from firebase_admin import credentials, firestore
+from flask import Flask, jsonify, request
 
 cred = credentials.Certificate('./key.json')
-firebase_admin.initialize_app(cred, {
-    'databaseURL': 'https://fundamentals-demo-default-rtdb.asia-southeast1.firebasedatabase.app'
-})
+firebase_app = firebase_admin.initialize_app(cred)
 
 app = Flask(__name__)
-app.secret_key = os.urandom(54)
+db = firestore.client()
 
-app.config['FIREBASE_ADMIN_APP'] = firebase_admin.get_app()
+@app.route('/api/users', methods=['GET'])
+def get_users():
+    users_ref = db.collection('users')
+    users = [doc.to_dict() for doc in users_ref.get()]
+    return jsonify(users), 200
 
-@app.route('/api/signup', methods=['POST'])
-def signup():
-    email = request.json['email']
-    password = request.json['password']
-    first_name = request.json['first_name']
-    last_name = request.json['last_name']
-    gender = request.json['gender']
+@app.route('/api/users', methods=['POST'])
+def create_user():
+    user_data = request.json
+    users_ref = db.collection('users')
+    user_ref = users_ref.document()
+    user_ref.set(user_data)
+    user_data['id'] = user_ref.id
+    return jsonify(user_data), 201
 
-    try:
-        user = auth.create_user(
-            email=email,
-            password=password,
-            display_name=first_name
-        )
-        session['user'] = user.uid
-        db.reference(f'users/{user.uid}').set(
-            {
-            'first_name': first_name,
-            'last_name': last_name,
-            'email': user.email,
-            'gender': gender
-            }
-        )
-        return jsonify({'message': 'Account created successfully.'}), 201
-    except Exception as e:
-        return jsonify({'message': f'There was an issue creating your account: {e}'}), 40
-
-
-@app.route('/api/login', methods=['POST'])
-def login():
-    email = request.json['email']
-    password = request.json['password']
-
-    app = app.config['FIREBASE_ADMIN_APP']
-    auth = firebase_admin.auth
-    
-    user = auth.get_user_by_email(email, password)
-    try:
-        decoded_token = auth.verify_id_token(user.id_token)
-        user = auth.get_user(decoded_token['uid'])
-        session['user'] = user.uid
-        return jsonify({'message': 'Login successful'}), 200
-    except Exception as e:
-        return jsonify({'message': f'Invalid credentials {e}'}), 401
-    
-
-@app.route('/api/logout', methods=['POST'])
-def logout():
-    session.pop('user', None)
-    return jsonify({'message': 'Logout successful.'}), 200
-
-
-@app.route('/api/profile', methods=['GET'])
-def profile():
-    if 'user' in session:
-        user = auth.get_user(session['user'])
-        user_data = db.reference(f'users/{user.uid}').get()
-        return jsonify({'email': user.email, 
-                        'first_name': user_data['first_name'],
-                        'last_name': user_data['last_name'],
-                        'gender': user_data['gender'] }), 200
+@app.route('/api/users/<user_id>', methods=['GET'])
+def get_user(user_id):
+    user_ref = db.collection('users').document(user_id)
+    user_data = user_ref.get()
+    if user_data.exists:
+        return jsonify(user_data.to_dict()), 200
     else:
-        return jsonify({'message': 'You are not logged in'}), 401
-    
+        return jsonify({'message': 'User not found'}), 404
 
+@app.route('/api/users/<user_id>', methods=['PUT'])
+def update_user(user_id):
+    user_data = request.json
+    user_ref = db.collection('users').document(user_id)
+    user_ref.update(user_data)
+    return jsonify({'message': 'User updated successfully'}), 200
+
+@app.route('/api/users/<user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    user_ref = db.collection('users').document(user_id)
+    user_ref.delete()
+    return jsonify({'message': 'User deleted successfully'}), 200
 
 if __name__ == '__main__':
     app.run()
